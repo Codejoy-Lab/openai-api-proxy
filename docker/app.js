@@ -32,7 +32,7 @@ const controller = new AbortController();
 app.all(`*`, async (req, res) => {
   
   if(req.originalUrl) req.url = req.originalUrl;
-  let url = `https://api.openai.com${req.url}`;
+  let url = `https://api.anthropic.com${req.url}`;
   // 从 header 中取得 Authorization': 'Bearer 后的 token
   const token = req.headers.authorization?.split(' ')[1];
   if( !token ) return res.status(403).send('Forbidden');
