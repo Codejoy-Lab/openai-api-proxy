@@ -20,6 +20,9 @@ app.all(`*`, async (req, res) => {
   const CLAUDE_API_BASE = process.env.CLAUDE_API_BASE || 'https://api.anthropic.com';
   let url = `${CLAUDE_API_BASE}${req.url}`;
 
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const timestamp = new Date().toLocaleString('zh-CN');
+
   // 从header中获取API key
   const api_key = req.headers['x-api-key'] || req.headers.authorization?.split(' ')[1];
   if(!api_key) return res.status(403).send('Forbidden');
@@ -53,8 +56,8 @@ app.all(`*`, async (req, res) => {
   }
 
   try {
-    console.log("请求Claude API:", {url, options: {...options, body: options.body ? JSON.parse(options.body) : undefined}});
-
+    //console.log("Claude  API:请求Claude  API:", {url});
+    console.log(`[${timestamp}]Claude  API: ${url} 请求IP：${ip} Model: ${restBody.model}`);
     // 处理流式请求
     if(restBody.stream) {
       const response = await myFetch(url, options);
@@ -63,18 +66,18 @@ app.all(`*`, async (req, res) => {
         const error = await response.json();
         return res.status(response.status).json(error);
       }
-
+      console.log("使用SSE");
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-
+    
       // 直接转发Claude的响应流
       response.body.pipe(res);
 
       response.body.on('end', () => {
         res.end();
       });
-
+      
       // 错误处理
       response.body.on('error', (err) => {
         console.error('Stream error:', err);
@@ -92,9 +95,12 @@ app.all(`*`, async (req, res) => {
 
       const data = await response.json();
 
-      // 转换响应格式以匹配OpenAI格式
+  /*       // 转换响应格式以匹配OpenAI格式
       if(req.url.includes('/messages')) {
-        const transformedData = {
+*/ 
+     const useOpenAIFormat = req.headers['x-use-openai-format'] === 'true'; 
+      if(useOpenAIFormat && req.url.includes('/messages')) {
+       const transformedData = {
           id: data.id,
           object: 'chat.completion',
           created: Date.now(),
