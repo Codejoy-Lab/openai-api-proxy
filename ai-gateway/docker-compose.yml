@@ -19,8 +19,12 @@ services:
 
   ai-proxy:
     image: docker-registry.codejoyai.com:8000/codejoy/openai-proxy:1.0
-    container_name: aigateway-proxy-service
+    #container_name: aigateway-proxy-service
     restart: always
+    deploy: # 新增 deploy 配置块
+      replicas: 3 # 指定运行 3 个副本
+      restart_policy: # 定义重启策略
+        condition: on-failure # 仅在失败时重启
     # NO ports exposed directly
     environment:
       CF_API_TOKEN: ${CF_API_TOKEN}

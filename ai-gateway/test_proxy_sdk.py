@@ -53,8 +53,8 @@ def test_anthropic_sdk():
         print("Sending request to Anthropic via proxy...")
         message = client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=50,
-            messages=[{"role": "user", "content": "Briefly, what is Cloudflare using the SDK?"}]
+            max_tokens=350,
+            messages=[{"role": "user", "content": "Briefly, Does Anthropic use cloudeflare?"}]
         )
         print("--- Anthropic SDK Response ---")
         print(f"Status: Success")
@@ -89,8 +89,8 @@ def test_openai_sdk():
         print("Sending request to OpenAI via proxy...")
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
-            max_tokens=250,
-            messages=[{"role": "user", "content": "Briefly, what is Cloudflare using the SDK?"}]
+            max_tokens=350,
+            messages=[{"role": "user", "content": "Briefly, Does Anthropic use cloudeflare?"}]
         )
         print("--- OpenAI SDK Response ---")
         print(f"Status: Success")
@@ -126,7 +126,7 @@ def test_openai_streaming_sdk():
         stream = client.chat.completions.create(
             model="gpt-4o-mini",
             max_tokens=300,
-            messages=[{"role": "user", "content": "Tell me a very short story about a proxy server using the SDK."}],
+            messages=[{"role": "user", "content": "Tell me a very short story about the history of React and Vue"}],
             stream=True,
         )
         print("--- OpenAI SDK Streaming Response ---")
