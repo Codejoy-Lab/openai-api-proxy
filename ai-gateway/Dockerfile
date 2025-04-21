@@ -1,39 +1,33 @@
 # Stage 1: Build/Dependencies Stage
-FROM oven/bun:canary-alpine as builder # Use the full image which might have more build tools if needed
+FROM oven/bun:canary-alpine AS builder
 WORKDIR /app
 
-# Create non-root user early (optional in builder but good practice)
-RUN groupadd --gid 1001 bun && \
-    useradd --uid 1001 --gid 1001 --shell /bin/bash --create-home bun
+# User 'bun' and group 'bun' are likely pre-created in the base image.
+# We don't need to create them.
 
 # Copy dependency definition files
-COPY package.json bun.lockb ./
+COPY package.json bun.lock* ./
 
 # Install dependencies using frozen lockfile
-# This layer is cached if lockfile doesn't change
 RUN bun install --frozen-lockfile
 
-# Copy the rest of the application code
+# Copy the rest of the application source code
 COPY index.ts .
-# If you had a tsconfig.json, copy it too: COPY tsconfig.json .
-
-# Optional: Change ownership early if needed, though final stage matters more
-# RUN chown -R bun:bun /app
+# COPY tsconfig.json . # If you have one
 
 # Stage 2: Production Stage
-FROM oven/bun:canary-alpine as production # Use the slim image
+FROM oven/bun:canary-alpine AS production
 
 WORKDIR /app
 
-# Create non-root user and group (must be done in final stage)
-RUN groupadd --gid 1001 bun && \
-    useradd --uid 1001 --gid 1001 --shell /bin/bash --create-home bun
+# User 'bun' and group 'bun' are pre-created in the base image.
 
-# Copy installed dependencies from the builder stage
+# Copy installed dependencies from the builder stage, ensuring ownership by 'bun'
+# Docker needs the user/group to exist for --chown to work, which it does in the base image.
 COPY --from=builder --chown=bun:bun /app/node_modules ./node_modules
-# Copy application code from the builder stage
+# Copy application code from the builder stage, ensuring ownership by 'bun'
 COPY --from=builder --chown=bun:bun /app/index.ts .
-# Copy package.json too (sometimes useful for runtime info, though not strictly needed by bun run index.ts)
+# Copy package.json too, ensuring ownership by 'bun'
 COPY --from=builder --chown=bun:bun /app/package.json .
 
 # Expose the port the application will listen on
@@ -43,10 +37,15 @@ EXPOSE 9000
 ENV NODE_ENV=production
 ENV PORT=9000
 ENV LOG_LEVEL=info
-# Remember: CF_GATEWAY_URL and CF_API_TOKEN MUST be injected at runtime
+# Remember: CF_GATEWAY_URL_* and CF_API_TOKEN MUST be injected at runtime
 
-# Switch to the non-root user
+# Switch to the pre-existing non-root user 'bun'
 USER bun
+
+# Healthcheck (Optional but recommended)
+# Ensure curl is available in the base image (it usually is in Alpine)
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:${PORT}/healthz || exit 1
 
 # Define the command to run the application
 CMD ["bun", "run", "index.ts"]
