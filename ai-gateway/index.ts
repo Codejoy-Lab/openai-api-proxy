@@ -141,30 +141,79 @@ Bun.serve({
     }
 
     // --- Request Body Processing ---
-    let requestBody: any;
-    let bodyString: string | undefined;
+    let bodyString: string | undefined; // This will hold the raw body text
     let isStreamRequest = false;
-    try { /* ... body processing logic ... */
-         if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
-            const contentType = request.headers.get('content-type');
-            if (contentType?.includes('application/json')) {
-                requestBody = await request.json();
-                isStreamRequest = requestBody?.stream === true;
-                const { moderation, moderation_level, ...restBody } = requestBody; // Clean fields if necessary
+    let parsedRequestBody: any; // To hold the parsed body for checks
 
-                // Provider-Specific Body Adjustments (e.g., Anthropic defaults)
-                if (providerKey === 'anthropic' && remainingPath.includes('/messages')) {
-                    bodyString = JSON.stringify({ ...restBody, model: restBody.model || 'claude-3-sonnet-20240229', max_tokens: restBody.max_tokens || 1024 });
-                } else {
-                    bodyString = JSON.stringify(restBody); // Pass through by default
+    try {
+        if (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH') {
+            // 1. Read the raw body text first
+            bodyString = await request.text();
+
+            // 2. Try to parse it IF content type suggests JSON, for checks
+            const contentType = request.headers.get('content-type');
+            if (contentType?.includes('application/json') && bodyString) {
+                try {
+                    parsedRequestBody = JSON.parse(bodyString);
+                    isStreamRequest = parsedRequestBody?.stream === true; // Check for stream flag
+
+                    // --- Provider-Specific Body Adjustments (Now modifies parsedRequestBody if needed) ---
+                    // IMPORTANT: If you modify, you MUST re-serialize ONLY the modified version.
+                    // For now, we'll focus on fixing the pass-through.
+                    // Example placeholder if modification was needed:
+                    // if (providerKey === 'anthropic' && remainingPath.includes('/messages')) {
+                    //     const modifiedBody = { ...parsedRequestBody, model: parsedRequestBody.model || 'default', max_tokens: parsedRequestBody.max_tokens || 1024 };
+                    //     // If modified, use the *newly* stringified version INSTEAD of original bodyString
+                    //     bodyString = JSON.stringify(modifiedBody);
+                    //     childLogger.debug("Applied Anthropic body defaults and re-serialized");
+                    // }
+
+                    // If NO modifications are made for a provider (like OpenAI/Google currently),
+                    // bodyString still holds the ORIGINAL raw text, which is what we want.
+
+                } catch (parseError: any) {
+                    childLogger.warn({ err: parseError.message }, "Failed to parse JSON body despite Content-Type header. Forwarding raw text.");
+                    // Keep original bodyString (raw text)
+                    isStreamRequest = false; // Cannot determine stream status
                 }
-            } else if (request.body) {
-                 childLogger.warn({ contentType }, "Received non-JSON request body, attempting to read as text");
-                 bodyString = await request.text();
+            } else {
+                // If not JSON or no body, bodyString already holds the raw text (or is undefined)
+                 childLogger.debug({ contentType }, "Not processing body as JSON based on Content-Type or empty body.");
                  isStreamRequest = false;
             }
         }
-    } catch (error: any) { /* ... body parsing error handling ... */ }
+    } catch (error: any) {
+        // Error reading request.text()
+        childLogger.error({ err: error.message, stack: error.stack, status: 500 }, 'Failed to read request body text');
+        // Set bodyString to undefined or handle error appropriately
+        bodyString = undefined;
+        // Potentially return a 500 error here if reading the body fails fundamentally
+        return new Response(JSON.stringify({ error: 'Failed to read request body' }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }});
+    }
+
+    // --- Build Forward Request Headers ---
+    const forwardHeaders = new Headers();
+    // ... (Set cf-aig-authorization, Backend Auth Header, Content-Type, other headers as before) ...
+     // 1. Cloudflare AI Gateway Authentication
+    forwardHeaders.set('cf-aig-authorization', `Bearer ${cfAigToken}`);
+    // 2. Backend Authentication (forwarded from client)
+    forwardHeaders.set(backendAuthHeaderName, backendAuthHeaderValue!); // Add ! because we checked for it earlier
+    // 3. Content-Type (forwarded from client or default)
+    // Ensure we forward the *original* Content-Type from the client
+    forwardHeaders.set('Content-Type', request.headers.get('Content-Type') || 'application/json');
+    // 4. Provider-specific NON-AUTH headers
+    if (providerKey === 'anthropic') {
+        forwardHeaders.set('anthropic-version', request.headers.get('anthropic-version') || '2023-06-01');
+    }
+
+    // --- Build Fetch Options ---
+    const fetchOptions: RequestInit = {
+      method: request.method,
+      headers: forwardHeaders,
+      // *** Use the potentially unmodified raw bodyString ***
+      body: bodyString,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    };
 
     // --- Build Forward Request Headers ---
     const forwardHeaders = new Headers();
