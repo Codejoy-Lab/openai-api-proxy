@@ -21,6 +21,10 @@ FROM oven/bun:canary-alpine AS production
 WORKDIR /app
 
 # User 'bun' and group 'bun' are pre-created in the base image.
+# --- Add curl explicitly ---
+# Install curl for the healthcheck command
+# Use --no-cache to avoid keeping the apk cache, reducing image size
+RUN apk add --no-cache curl
 
 # Copy installed dependencies from the builder stage, ensuring ownership by 'bun'
 # Docker needs the user/group to exist for --chown to work, which it does in the base image.

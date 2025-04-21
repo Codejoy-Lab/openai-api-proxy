@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:stable-alpine
+    container_name: aigateway-nginx-proxy
+    restart: always
+    ports:
+      # Map Host Port 8003 for HTTPS
+      - "8003:8003"
+    volumes:
+      - ./nginx.config.d:/etc/nginx/conf.d:ro
+      - /opt/cert:/opt/cert:ro # Using host's /opt/cert
+      # - nginx_log_volume:/var/log/nginx # Optional log volume
+    depends_on:
+      - ai-proxy
+    networks:
+      - default
+
+  ai-proxy:
+    image: docker-registry.codejoyai.com:8000/codejoy/openai-proxy:1.0
+    container_name: aigateway-proxy-service
+    restart: always
+    # NO ports exposed directly
+    environment:
+      CF_API_TOKEN: ${CF_API_TOKEN}
+      CF_GATEWAY_URL_ANTHROPIC: ${CF_GATEWAY_URL_ANTHROPIC}
+      CF_GATEWAY_URL_OPENAI: ${CF_GATEWAY_URL_OPENAI}
+      CF_GATEWAY_URL_GOOGLE_AI_STUDIO: ${CF_GATEWAY_URL_GOOGLE_AI_STUDIO}
+      # LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - default
+
+networks:
+  default:
+
+# volumes: # Optional log volume
+#   nginx_log_volume:

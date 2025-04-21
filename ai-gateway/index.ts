@@ -38,7 +38,7 @@ for (const providerKey in providerDefinitions) {
         configIsValid = false;
         continue;
     }
-    if (!gatewayUrl.startsWith('http')) {
+    if (!gatewayUrl.startsWith('http://') && !gatewayUrl.startsWith('https://')) {
         console.error(`FATAL: Invalid URL format for ${gatewayUrlVar}: ${gatewayUrl}`);
         configIsValid = false;
     } else {

@@ -17,7 +17,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") # Uncomment if testing Google
 
 # Proxy server URL (running locally)
-PROXY_URL = "http://localhost:9000"
+PROXY_URL = "https://openai-api.codejoyai.com:8003"
 
 # --- Helper Function ---
 def check_env_vars():
